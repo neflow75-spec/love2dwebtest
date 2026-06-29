@@ -8,14 +8,18 @@
       margin: 0;
       overflow: hidden;
       background: #222;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
     }
     canvas {
-      display: block;
+      background: #fff;
     }
   </style>
 </head>
 <body>
-  <canvas id="game"></canvas>
+  <canvas id="game" width="800" height="600"></canvas>
   <script src="game.js"></script>
 </body>
 </html>
