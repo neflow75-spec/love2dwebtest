@@ -1,13 +1,39 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-const GAME_WIDTH = 360;
-const GAME_HEIGHT = 640;
+// Portrait virtual resolution
+const PORTRAIT_W = 360;
+const PORTRAIT_H = 640;
+
+// Landscape virtual resolution
+const LANDSCAPE_W = 640;
+const LANDSCAPE_H = 360;
+
+let GAME_WIDTH = PORTRAIT_W;
+let GAME_HEIGHT = PORTRAIT_H;
 
 let lastTime = 0;
-let box = { x: 50, y: 300, speed: 100 };
+
+// Demo object
+let box = { x: 50, y: 150, speed: 120 };
 
 function resizeCanvas() {
+  const isLandscape = window.innerWidth > window.innerHeight;
+
+  // Swap virtual resolution based on orientation
+  if (isLandscape) {
+    GAME_WIDTH = LANDSCAPE_W;
+    GAME_HEIGHT = LANDSCAPE_H;
+  } else {
+    GAME_WIDTH = PORTRAIT_W;
+    GAME_HEIGHT = PORTRAIT_H;
+  }
+
+  // Set canvas logical size
+  canvas.width = GAME_WIDTH;
+  canvas.height = GAME_HEIGHT;
+
+  // Scale canvas to fit screen
   const scale = Math.min(
     window.innerWidth / GAME_WIDTH,
     window.innerHeight / GAME_HEIGHT
@@ -45,4 +71,3 @@ function loop(timestamp) {
 }
 
 requestAnimationFrame(loop);
-
