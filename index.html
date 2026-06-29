@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Responsive Canvas Game</title>
+    <title>Camera Scaling Canvas</title>
     <style>
-        /* Remove default margins and hide scrollbars */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -15,9 +14,8 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #000;
+            background-color: #111; /* Dark border outside the game arena */
         }
-        /* Make canvas fill the entire screen */
         canvas {
             display: block;
             width: 100vw;
@@ -33,59 +31,107 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // Box properties (using relative sizing)
+        // Fixed virtual world size (the arena size doesn't change, the camera does)
+        const WORLD_WIDTH = 800;
+        const WORLD_HEIGHT = 800;
+
+        let cameraZoom = 1;
+
+        // Box properties defined strictly in world coordinates
         let box = {
-            x: 50,
-            y: 50,
-            size: 0.1, // Box size is 10% of the canvas width
-            speedX: 2,
-            speedY: 2
+            x: 100,
+            y: 100,
+            size: 80, 
+            speedX: 4,
+            speedY: 4
         };
 
-        // Automatically handle resize and orientation changes
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
+
+            // Calculate scale factors to fit the world into the screen
+            let scaleX = canvas.width / WORLD_WIDTH;
+            let scaleY = canvas.height / WORLD_HEIGHT;
+
+            if (canvas.width > canvas.height) {
+                // LANDSCAPE: Zoom out by using a smaller scale factor (shows more background margins)
+                cameraZoom = Math.min(scaleX, scaleY) * 0.75; 
+            } else {
+                // PORTRAIT: Zoom in to fill as much space as possible
+                cameraZoom = Math.min(scaleX, scaleY) * 1.1; 
+            }
         }
 
-        // Initialize size
-        resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
         window.addEventListener('orientationchange', resizeCanvas);
+        resizeCanvas();
 
-        // Main game/animation loop
+        function drawGrid(spacing) {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; // Soft grid lines
+            ctx.lineWidth = 2;
+            
+            // Draw vertical grid lines
+            for (let x = 0; x <= WORLD_WIDTH; x += spacing) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, WORLD_HEIGHT);
+                ctx.stroke();
+            }
+            // Draw horizontal grid lines
+            for (let y = 0; y <= WORLD_HEIGHT; y += spacing) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(WORLD_WIDTH, y);
+                ctx.stroke();
+            }
+        }
+
         function update() {
-            // 1. Clear with Green Background
-            ctx.fillStyle = '#228B22'; // Forest Green
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // 2. Calculate dynamic pixel size based on current screen width
-            let currentBoxSize = canvas.width * box.size;
-
-            // 3. Move the box
+            // 1. Move box inside world coordinates
             box.x += box.speedX;
             box.y += box.speedY;
 
-            // 4. Collision Detection (Bounce off walls)
-            if (box.x <= 0 || box.x + currentBoxSize >= canvas.width) {
-                box.speedX *= -1;
-                // Keep box inside bounds if screen resized quickly
-                box.x = Math.max(0, Math.min(box.x, canvas.width - currentBoxSize));
+            // 2. Physics collision against fixed world walls
+            if (box.x <= 0 || box.x + box.size >= WORLD_WIDTH) {
+                box.speedX *=-1;
+                box.x = Math.max(0, Math.min(box.x, WORLD_WIDTH - box.size));
             }
-            if (box.y <= 0 || box.y + currentBoxSize >= canvas.height) {
+            if (box.y <= 0 || box.y + box.size >= WORLD_HEIGHT) {
                 box.speedY *= -1;
-                box.y = Math.max(0, Math.min(box.y, canvas.height - currentBoxSize));
+                box.y = Math.max(0, Math.min(box.y, WORLD_HEIGHT - box.size));
             }
 
-            // 5. Draw Red Box
-            ctx.fillStyle = '#FF0000'; // Pure Red
-            ctx.fillRect(box.x, box.y, currentBoxSize, currentBoxSize);
+            // 3. Clear entire screen with dark canvas background
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Request next frame
+            // 4. Save state, center camera, and apply zoom
+            ctx.save();
+            
+            // Move camera origin to the center of the screen
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            // Apply the responsive zoom factor
+            ctx.scale(cameraZoom, cameraZoom);
+            // Move origin back so (0,0) is top-left of the game arena
+            ctx.translate(-WORLD_WIDTH / 2, -WORLD_HEIGHT / 2);
+
+            // 5. Draw Green Background Arena
+            ctx.fillStyle = '#228B22'; // Forest Green
+            ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+            // 6. Draw Grid (so you can visually see the background scaling out)
+            drawGrid(50);
+
+            // 7. Draw Red Box
+            ctx.fillStyle = '#FF0000';
+            ctx.fillRect(box.x, box.y, box.size, box.size);
+
+            // 8. Restore context so scaling doesn't break future UI elements
+            ctx.restore();
+
             requestAnimationFrame(update);
         }
 
-        // Start the animation
         requestAnimationFrame(update);
     </script>
 </body>
