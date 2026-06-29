@@ -33,11 +33,11 @@ function resizeCanvas() {
   canvas.width = GAME_WIDTH;
   canvas.height = GAME_HEIGHT;
 
-  // Scale canvas to fit screen
-  const scale = Math.min(
-    window.innerWidth / GAME_WIDTH,
-    window.innerHeight / GAME_HEIGHT
-  );
+  // COVER MODE: fill entire screen
+  const scaleX = window.innerWidth / GAME_WIDTH;
+  const scaleY = window.innerHeight / GAME_HEIGHT;
+
+  const scale = Math.max(scaleX, scaleY); // cover mode
 
   canvas.style.transform = `scale(${scale})`;
 }
