@@ -15,17 +15,21 @@ let box = { x: 100, y: 250, speed: 150 };
 function resizeCanvas() {
   const dpr = window.devicePixelRatio || 1;
 
+  // Set actual canvas resolution
   canvas.width = window.innerWidth * dpr;
   canvas.height = window.innerHeight * dpr;
 
+  // CSS size (display size)
   canvas.style.width = window.innerWidth + "px";
   canvas.style.height = window.innerHeight + "px";
 
+  // Compute scale factor
   scale = Math.min(
     canvas.width / GAME_WIDTH,
     canvas.height / GAME_HEIGHT
   );
 
+  // Reset transform for high DPI
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
@@ -40,8 +44,15 @@ function update(dt) {
 
 function draw() {
   ctx.save();
-  ctx.scale(scale, scale);
 
+  // Center the game world
+  const offsetX = (canvas.width / scale - GAME_WIDTH) / 2;
+  const offsetY = (canvas.height / scale - GAME_HEIGHT) / 2;
+
+  ctx.scale(scale, scale);
+  ctx.translate(offsetX, offsetY);
+
+  // Draw game world
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
