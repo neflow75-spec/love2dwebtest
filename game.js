@@ -1,17 +1,17 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-// Virtual resolution (like Love2D)
+// Virtual resolution (your game world)
 const GAME_WIDTH = 800;
 const GAME_HEIGHT = 600;
 
 let scale = 1;
 let lastTime = 0;
 
-// Simple demo object
-let box = { x: 100, y: 100, speed: 120 };
+// Demo object
+let box = { x: 100, y: 250, speed: 150 };
 
-// Resize + scale logic
+// Resize + scale
 function resizeCanvas() {
   const dpr = window.devicePixelRatio || 1;
 
@@ -26,7 +26,7 @@ function resizeCanvas() {
     canvas.height / GAME_HEIGHT
   );
 
-  ctx.scale(dpr, dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
 window.addEventListener("resize", resizeCanvas);
@@ -62,12 +62,3 @@ function loop(timestamp) {
 }
 
 requestAnimationFrame(loop);
-
-// Input scaling example
-canvas.addEventListener("pointerdown", e => {
-  const rect = canvas.getBoundingClientRect();
-  const x = (e.clientX - rect.left) * (canvas.width / rect.width) / scale;
-  const y = (e.clientY - rect.top) * (canvas.height / rect.height) / scale;
-
-  console.log("Scaled input:", x, y);
-});
