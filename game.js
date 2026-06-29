@@ -1,13 +1,11 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-const GAME_WIDTH = 800;
-const GAME_HEIGHT = 600;
+const GAME_WIDTH = 360;
+const GAME_HEIGHT = 640;
 
 let lastTime = 0;
-
-// Simple demo box
-let box = { x: 100, y: 250, speed: 150 };
+let box = { x: 50, y: 300, speed: 100 };
 
 function resizeCanvas() {
   const scale = Math.min(
