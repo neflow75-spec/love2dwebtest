@@ -1,26 +1,92 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Mobile First Scaler</title>
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      background: #000;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
-    canvas {
-      background: #fff;
-      transform-origin: top left;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Responsive Canvas Game</title>
+    <style>
+        /* Remove default margins and hide scrollbars */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+        }
+        /* Make canvas fill the entire screen */
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
 </head>
 <body>
-  <canvas id="game"></canvas>
-  <script src="game.js"></script>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Box properties (using relative sizing)
+        let box = {
+            x: 50,
+            y: 50,
+            size: 0.1, // Box size is 10% of the canvas width
+            speedX: 2,
+            speedY: 2
+        };
+
+        // Automatically handle resize and orientation changes
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        // Initialize size
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', resizeCanvas);
+
+        // Main game/animation loop
+        function update() {
+            // 1. Clear with Green Background
+            ctx.fillStyle = '#228B22'; // Forest Green
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 2. Calculate dynamic pixel size based on current screen width
+            let currentBoxSize = canvas.width * box.size;
+
+            // 3. Move the box
+            box.x += box.speedX;
+            box.y += box.speedY;
+
+            // 4. Collision Detection (Bounce off walls)
+            if (box.x <= 0 || box.x + currentBoxSize >= canvas.width) {
+                box.speedX *= -1;
+                // Keep box inside bounds if screen resized quickly
+                box.x = Math.max(0, Math.min(box.x, canvas.width - currentBoxSize));
+            }
+            if (box.y <= 0 || box.y + currentBoxSize >= canvas.height) {
+                box.speedY *= -1;
+                box.y = Math.max(0, Math.min(box.y, canvas.height - currentBoxSize));
+            }
+
+            // 5. Draw Red Box
+            ctx.fillStyle = '#FF0000'; // Pure Red
+            ctx.fillRect(box.x, box.y, currentBoxSize, currentBoxSize);
+
+            // Request next frame
+            requestAnimationFrame(update);
+        }
+
+        // Start the animation
+        requestAnimationFrame(update);
+    </script>
 </body>
 </html>
