@@ -5,7 +5,7 @@ html
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-        <title>Responsive Pong - Dynamic Viewport Fixed</title>
+        <title>Responsive Pong - Touch Fixed</title>
         <style>
             /* Force the browser window to act as an unscrollable, rigid frame */
             html, body {
@@ -159,10 +159,10 @@ html
     // Desktop Controls
     window.addEventListener("mousemove", (e) => movePaddle(e.clientY));
     
-    // Mobile Touch Controls
+    // Mobile Touch Controls - Corrected to read the first finger object inside array
     window.addEventListener("touchmove", (e) => {
-        if(e.touches.length > 0) {
-            movePaddle(e.touches.clientY);
+        if(e.touches && e.touches.length > 0) {
+            movePaddle(e.touches[0].clientY);
         }
     }, { passive: false });
     
