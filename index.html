@@ -5,15 +5,16 @@ html
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-        <title>Responsive Pong - Zoom Fixed</title>
+        <title>Responsive Pong - Dynamic Viewport Fixed</title>
         <style>
             /* Force the browser window to act as an unscrollable, rigid frame */
             html, body {
                 margin: 0;
                 padding: 0;
                 background-color: #111;
-                width: 100%;
-                height: 100%;
+                width: 100vw;
+                height: 100vh;
+                height: 100dvh; /* Dynamic viewport tracking for modern mobile browsers */
                 overflow: hidden;
                 font-family: sans-serif;
                 position: fixed; 
@@ -28,10 +29,6 @@ html
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                
-                /* Smooth transitions when rotating or scaling */
-                transition: transform 0.2s ease-in-out;
-                transform-origin: center center;
             }
     
             canvas {
@@ -84,11 +81,11 @@ html
                 }
             }
     
-            /* 2. MOBILE ZOOM OUT TRIGGER (Forces a scale reduction on landscape phones) */
-            @media screen and (min-aspect-ratio: 13/9) and (max-width: 932px) and (max-height: 500px) {
+            /* 2. MOBILE LANDSCAPE SAFETY TRAP */
+            /* If a mobile phone is sideways (short screen), force a 20% height reduction buffer */
+            @media screen and (min-aspect-ratio: 13/9) and (max-width: 950px) and (max-height: 500px) {
                 #game-container {
-                    /* Zooms out to 85% of standard size to clear persistent browser bars */
-                    transform: scale(0.85); 
+                    height: 80dvh; /* Shrinks container height explicitly to leave room for URL bars */
                 }
             }
         </style>
@@ -122,11 +119,6 @@ html
     const ai = { x: 0, y: 0, score: 0 };
     
     function resize() {
-        const container = document.getElementById("game-container");
-        
-        // Explicitly lock the container to actual browser viewable pixel dimensions
-        container.style.height = window.innerHeight + "px";
-    
         const rect = canvas.getBoundingClientRect();
         if (rect.height === 0) return; // Keeps calculations safe when hidden by overlay
     
