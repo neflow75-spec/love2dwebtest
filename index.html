@@ -2,95 +2,225 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LÖVE2D-Style Scale Engine</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Responsive Pong - Landscape Enforced</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body, html { width: 100%; height: 100%; overflow: hidden; background: #000; }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: sans-serif;
+        }
+
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+            box-sizing: border-box;
+            padding: 10px;
+        }
+
         canvas {
+            width: 100%;
+            height: 100%;
+            background: #000;
+            border: 4px solid #fff;
             display: block;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%); /* Keeps game perfectly centered */
+            box-sizing: border-box;
+        }
+
+        /* LANDSCAPE FORCE OVERLAY */
+        #orientation-overlay {
+            display: none; /* Hidden by default */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #111;
+            color: #fff;
+            z-index: 9999;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .phone-icon {
+            font-size: 50px;
+            margin-bottom: 20px;
+            animation: rotatePhone 2s infinite ease-in-out;
+        }
+
+        @keyframes rotatePhone {
+            0% { transform: rotate(0deg); }
+            50% { transform: rotate(-90deg); }
+            100% { transform: rotate(-90deg); }
+        }
+
+        /* Trigger overlay only on mobile screen aspect ratios held vertically */
+        @media screen and (max-aspect-ratio: 13/9) and (max-width: 1024px) {
+            #orientation-overlay {
+                display: flex;
+            }
+            #game-container {
+                display: none;
+            }
         }
     </style>
 </head>
 <body>
 
-    <canvas id="screenCanvas"></canvas>
+<!-- The Force-Landscape Overlay -->
+<div id="orientation-overlay">
+    <div class="phone-icon">📱</div>
+    <h2>Please Rotate Your Device</h2>
+    <p>This game requires landscape mode.</p>
+</div>
 
-    <script>
-        // 1. VISIBLE SCREEN CANVAS (The "Monitor")
-        const screenCanvas = document.getElementById('screenCanvas');
-        const screenCtx = screenCanvas.getContext('2d');
+<div id="game-container">
+    <canvas id="pongCanvas"></canvas>
+</div>
 
-        // 2. INTERNAL VIRTUAL CANVAS (The "LÖVE2D Game Resolution")
-        const gameCanvas = document.createElement('canvas');
-        const gameCtx = gameCanvas.getContext('2d');
-        
-        // Lock your game logic to these dimensions exactly
-        gameCanvas.width = 400;  
-        gameCanvas.height = 240; 
+<script>
+const canvas = document.getElementById("pongCanvas");
+const ctx = canvas.getContext("2d");
 
-        // Game State Variables (Values are in "Game Pixels")
-        let box = { x: 20, y: 20, size: 40, dx: 2, dy: 2 };
+// INTERNAL LOGIC RESOLUTION
+const LOGIC_HEIGHT = 600;
+let LOGIC_WIDTH = 800; 
 
-        // 3. THE SCALER ENGINE (Replicating love.resize / Push)
-        function resizeScreen() {
-            // Get visible mobile/desktop viewport size
-            const windowWidth = window.innerWidth;
-            const windowHeight = window.innerHeight;
+// Game State
+const ball = { x: 0, y: 0, radius: 10, speedX: 5, speedY: 5 };
+const paddleWidth = 15;
+const paddleHeight = 100;
+const player = { x: 10, y: 0, score: 0 };
+const ai = { x: 0, y: 0, score: 0 };
 
-            // Find the best scale factor while preserving aspect ratio (Fit-to-Screen)
-            const scale = Math.min(windowWidth / gameCanvas.width, windowHeight / gameCanvas.height);
+function resize() {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.height === 0) return; // Prevent division by zero if hidden
 
-            // Resize physical canvas element on screen
-            screenCanvas.width = gameCanvas.width * scale;
-            screenCanvas.height = gameCanvas.height * scale;
+    const visualRatio = rect.width / rect.height;
+    
+    canvas.height = LOGIC_HEIGHT;
+    canvas.width = LOGIC_HEIGHT * visualRatio;
+    LOGIC_WIDTH = canvas.width;
 
-            // TOGGLE PIXEL ART SHARPNESS (Like love.graphics.setDefaultFilter("nearest"))
-            // Change to true if using high-res vector graphics instead of pixels
-            const smoothGraphics = false; 
-            screenCtx.imageSmoothingEnabled = smoothGraphics;
-            screenCtx.mozImageSmoothingEnabled = smoothGraphics;
-            screenCtx.webkitImageSmoothingEnabled = smoothGraphics;
-        }
+    player.y = LOGIC_HEIGHT / 2 - paddleHeight / 2;
+    ai.x = LOGIC_WIDTH - paddleWidth - 10;
+    ai.y = LOGIC_HEIGHT / 2 - paddleHeight / 2;
+    
+    resetBall();
+}
 
-        window.addEventListener('resize', resizeScreen);
-        window.addEventListener('orientationchange', resizeScreen);
-        resizeScreen(); // Call once at start
+function resetBall() {
+    ball.x = LOGIC_WIDTH / 2;
+    ball.y = LOGIC_HEIGHT / 2;
+    ball.speedX = (Math.random() > 0.5 ? 6 : -6);
+    ball.speedY = (Math.random() * 6) - 3;
+}
 
-        // 4. MAIN GAME LOOP
-        function loop() {
-            // --- GAME LOGIC (Always relative to virtual gameCanvas) ---
-            box.x += box.dx;
-            box.y += box.dy;
+// Input Handling
+function movePaddle(clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleY = LOGIC_HEIGHT / rect.height;
+    const canvasY = (clientY - rect.top) * scaleY;
+    player.y = canvasY - paddleHeight / 2;
+    
+    if (player.y < 0) player.y = 0;
+    if (player.y > LOGIC_HEIGHT - paddleHeight) player.y = LOGIC_HEIGHT - paddleHeight;
+}
 
-            if (box.x <= 0 || box.x + box.size >= gameCanvas.width) box.dx *= -1;
-            if (box.y <= 0 || box.y + box.size >= gameCanvas.height) box.dy *= -1;
+window.addEventListener("mousemove", (e) => movePaddle(e.clientY));
+window.addEventListener("touchmove", (e) => {
+    if(e.touches.length > 0) {
+        movePaddle(e.touches[0].clientY);
+    }
+}, { passive: false });
 
-            // --- STEP A: DRAW INTERNALLY (love.draw context) ---
-            gameCtx.fillStyle = '#228B22'; // Clean Green Background
-            gameCtx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+// Prevent mobile browser drag-down-to-refresh behaviors
+window.addEventListener("touchstart", (e) => { if(e.target === canvas) e.preventDefault(); }, { passive: false });
+window.addEventListener("touchend", (e) => { if(e.target === canvas) e.preventDefault(); }, { passive: false });
 
-            gameCtx.fillStyle = '#FF0000'; // Draw Red Box
-            gameCtx.fillRect(box.x, box.y, box.size, box.size);
+function update() {
+    ball.x += ball.speedX;
+    ball.y += ball.speedY;
 
-            // --- STEP B: SCALE TO MONITOR (The love2d engine blit) ---
-            // Clear the monitor view
-            screenCtx.clearRect(0, 0, screenCanvas.width, screenCanvas.height);
-            // Paint the hidden virtual canvas stretched over the visible one
-            screenCtx.drawImage(
-                gameCanvas, 
-                0, 0, gameCanvas.width, gameCanvas.height, // Source coordinates
-                0, 0, screenCanvas.width, screenCanvas.height // Destination coordinates
-            );
+    if (ball.y - ball.radius < 0 || ball.y + ball.radius > LOGIC_HEIGHT) {
+        ball.speedY = -ball.speedY;
+    }
 
-            requestAnimationFrame(loop);
-        }
+    const aiTarget = ball.y - paddleHeight / 2;
+    ai.y += (aiTarget - ai.y) * 0.12; 
 
-        requestAnimationFrame(loop);
-    </script>
+    let paddle = (ball.x < LOGIC_WIDTH / 2) ? player : ai;
+    if (detectCollision(ball, paddle)) {
+        ball.speedX = -ball.speedX;
+        let hitPoint = (ball.y - (paddle.y + paddleHeight/2)) / (paddleHeight/2);
+        ball.speedY = hitPoint * 6;
+    }
+
+    if (ball.x < 0) {
+        ai.score++;
+        resetBall();
+    } else if (ball.x > LOGIC_WIDTH) {
+        player.score++;
+        resetBall();
+    }
+}
+
+function detectCollision(b, p) {
+    return b.x + b.radius > p.x && 
+           b.x - b.radius < p.x + paddleWidth && 
+           b.y + b.radius > p.y && 
+           b.y - b.radius < p.y + paddleHeight;
+}
+
+function draw() {
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, LOGIC_WIDTH, LOGIC_HEIGHT);
+
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 10]);
+    ctx.beginPath();
+    ctx.moveTo(LOGIC_WIDTH / 2, 0);
+    ctx.lineTo(LOGIC_WIDTH / 2, LOGIC_HEIGHT);
+    ctx.stroke();
+
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(player.x, player.y, paddleWidth, paddleHeight);
+    ctx.fillRect(ai.x, ai.y, paddleWidth, paddleHeight);
+
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.font = "bold 40px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(player.score, LOGIC_WIDTH / 4, 60);
+    ctx.fillText(ai.score, (LOGIC_WIDTH / 4) * 3, 60);
+}
+
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+window.addEventListener("resize", resize);
+// Handle mobile orientation shifts natively
+window.addEventListener("orientationchange", () => {
+    setTimeout(resize, 200); // Small delay lets the browser finish rotating layout
+});
+
+resize();
+loop();
+</script>
 </body>
 </html>
