@@ -5,46 +5,44 @@ html
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-        <title>Responsive Pong - Maximized Canvas Test</title>
+        <title>Responsive Pong - Strict Fullscreen</title>
         <style>
-            /* Force the browser window to act as an unscrollable, rigid frame */
+            /* Lock screen window bounds entirely */
             html, body {
                 margin: 0;
                 padding: 0;
-                background-color: #111;
+                background-color: #000;
                 width: 100vw;
                 height: 100vh;
-                height: 100dvh; /* Dynamic viewport tracking for modern mobile browsers */
+                height: 100dvh; /* Dynamic calculation for mobile toolbars */
                 overflow: hidden;
                 font-family: sans-serif;
                 position: fixed; 
-                touch-action: none; /* Prevents pull-to-refresh mobile browser behaviors */
+                touch-action: none; /* Disables browser scrolling pull gestures */
             }
     
             #game-container {
                 width: 100%;
                 height: 100%;
                 box-sizing: border-box;
-                padding: 5px; /* Shrunk from 15px to 5px to reclaim valuable screen estate */
+                padding: 0; /* Stripped padding completely for true edge-to-edge look */
                 display: flex;
                 justify-content: center;
                 align-items: center;
             }
     
             canvas {
-                max-width: 100%;
-                max-height: 100%;
-                width: auto;
-                height: auto;
+                width: 100% !important;
+                height: 100% !important;
                 background: #000;
-                border: 4px solid #fff;
+                border: none; /* Removed the white border lines */
                 display: block;
                 box-sizing: border-box;
             }
     
             /* LANDSCAPE FORCE OVERLAY */
             #orientation-overlay {
-                display: none; /* Hidden unless vertical rules trigger */
+                display: none; 
                 position: fixed;
                 top: 0;
                 left: 0;
@@ -71,21 +69,13 @@ html
                 100% { transform: rotate(-90deg); }
             }
     
-            /* 1. VERTICAL PHONE DETECTOR (Show Warning Overlay) */
+            /* Show rotate warning overlay on tall screens (mobile portrait) */
             @media screen and (max-aspect-ratio: 13/9) and (max-width: 1024px) {
                 #orientation-overlay {
                     display: flex;
                 }
                 #game-container {
                     display: none;
-                }
-            }
-    
-            /* 2. MAXIMIZED MOBILE LANDSCAPE SAFETY TRAP */
-            /* Forces the canvas to be as physically big as possible without spilling under browser UI bars */
-            @media screen and (min-aspect-ratio: 13/9) and (max-width: 950px) and (max-height: 500px) {
-                #game-container {
-                    height: 92dvh; /* Expanded from 80dvh to 92dvh for a massive mobile layout boost */
                 }
             }
         </style>
@@ -107,11 +97,11 @@ html
     const canvas = document.getElementById("pongCanvas");
     const ctx = canvas.getContext("2d");
     
-    // INTERNAL GAME LOGIC VALUES
+    // INTERNAL GAME LOGIC HEIGHT (Strictly Maintained)
     const LOGIC_HEIGHT = 600;
     let LOGIC_WIDTH = 800; 
     
-    // Game State Values
+    // Game Entities Setup
     const ball = { x: 0, y: 0, radius: 10, speedX: 5, speedY: 5 };
     const paddleWidth = 15;
     const paddleHeight = 100;
@@ -119,16 +109,21 @@ html
     const ai = { x: 0, y: 0, score: 0 };
     
     function resize() {
-        const rect = canvas.getBoundingClientRect();
-        if (rect.height === 0) return; // Keeps calculations safe when hidden by overlay
+        const container = document.getElementById("game-container");
+        
+        // Explicitly snap game window sizing to active viewport dimensions
+        container.style.height = window.innerHeight + "px";
     
-        // Recalculate internal coordinate width based on visual aspect layout 
+        const rect = canvas.getBoundingClientRect();
+        if (rect.height === 0) return; 
+    
+        // Auto-adjust physics width to fill exact aspect ratio of the monitor/screen
         const visualRatio = rect.width / rect.height;
         canvas.height = LOGIC_HEIGHT;
         canvas.width = LOGIC_HEIGHT * visualRatio;
         LOGIC_WIDTH = canvas.width;
     
-        // Adjust entity dimensions relative to structural changes
+        // Pin positions nicely against new calculated fluid canvas outer bounds
         player.y = LOGIC_HEIGHT / 2 - paddleHeight / 2;
         ai.x = LOGIC_WIDTH - paddleWidth - 20;
         ai.y = LOGIC_HEIGHT / 2 - paddleHeight / 2;
@@ -146,12 +141,11 @@ html
     // Input Calculations
     function movePaddle(clientY) {
         const rect = canvas.getBoundingClientRect();
-        // Maps screen click height to structural 600px coordinates cleanly
         const scaleY = LOGIC_HEIGHT / rect.height;
         const canvasY = (clientY - rect.top) * scaleY;
         player.y = canvasY - paddleHeight / 2;
         
-        // Boundary locking
+        // Bounds check locking
         if (player.y < 0) player.y = 0;
         if (player.y > LOGIC_HEIGHT - paddleHeight) player.y = LOGIC_HEIGHT - paddleHeight;
     }
@@ -166,34 +160,32 @@ html
         }
     }, { passive: false });
     
-    // Block default touch browser actions on the screen canvas element
+    // Safeguards preventing multi-touch system drag glitches
     window.addEventListener("touchstart", (e) => { if(e.target === canvas) e.preventDefault(); }, { passive: false });
     window.addEventListener("touchend", (e) => { if(e.target === canvas) e.preventDefault(); }, { passive: false });
     
     function update() {
-        // Ball Movement Vectors
         ball.x += ball.speedX;
         ball.y += ball.speedY;
     
-        // Floor and Ceiling Collisions
+        // Roof and Floor Bounds Collision Vectors
         if (ball.y - ball.radius < 0 || ball.y + ball.radius > LOGIC_HEIGHT) {
             ball.speedY = -ball.speedY;
         }
     
-        // AI Follow Calculations
+        // AI Engine calculations
         const aiTarget = ball.y - paddleHeight / 2;
         ai.y += (aiTarget - ai.y) * 0.12; 
     
-        // Determine target paddle side 
+        // Paddle Hit Intersects
         let paddle = (ball.x < LOGIC_WIDTH / 2) ? player : ai;
         if (detectCollision(ball, paddle)) {
             ball.speedX = -ball.speedX;
-            // Changes reflection angle depending on location hit on the paddle structure
             let hitPoint = (ball.y - (paddle.y + paddleHeight/2)) / (paddleHeight/2);
             ball.speedY = hitPoint * 6;
         }
     
-        // Checking Score Zones
+        // Goal Checks
         if (ball.x < 0) {
             ai.score++;
             resetBall();
@@ -211,13 +203,14 @@ html
     }
     
     function draw() {
-        // Render Background Frame
+        // Fill deep screen workspace background frame
         ctx.fillStyle = "#000";
         ctx.fillRect(0, 0, LOGIC_WIDTH, LOGIC_HEIGHT);
     
         // Render Middle Line Markings
         ctx.strokeStyle = "#fff";
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 4;
+        ctx.setLineDash([15, 15]); /* Retro dashed layout design aesthetics */
         ctx.beginPath();
         ctx.moveTo(LOGIC_WIDTH / 2, 0);
         ctx.lineTo(LOGIC_WIDTH / 2, LOGIC_HEIGHT);
@@ -230,14 +223,15 @@ html
     
         // Render Game Ball
         ctx.beginPath();
+        ctx.setLineDash([]);
         ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
         ctx.fill();
     
         // Render Scores Text
-        ctx.font = "bold 40px monospace";
+        ctx.font = "bold 50px monospace";
         ctx.textAlign = "center";
-        ctx.fillText(player.score, LOGIC_WIDTH / 4, 60);
-        ctx.fillText(ai.score, (LOGIC_WIDTH / 4) * 3, 60);
+        ctx.fillText(player.score, LOGIC_WIDTH / 4, 70);
+        ctx.fillText(ai.score, (LOGIC_WIDTH / 4) * 3, 70);
     }
     
     function loop() {
@@ -246,13 +240,13 @@ html
         requestAnimationFrame(loop);
     }
     
-    // Window Event Listeners
+    // Global Rebuild Listeners
     window.addEventListener("resize", resize);
     window.addEventListener("orientationchange", () => {
         setTimeout(resize, 200); 
     });
     
-    // Run Setup Loop
+    // Fire Application Launch Systems
     resize();
     loop();
     </script>
