@@ -1,230 +1,259 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Responsive Pong - Landscape Enforced</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #111;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            overflow: hidden;
-            font-family: sans-serif;
+html
 
-            position: fixed;
-            width: 100vw;
-            touch-action: none; 
-        }
-
-        #game-container {
-            width: 100vw;
-            height: 92vh;
-            box-sizing: border-box;
-            padding: 10px;
-        }
-
-        canvas {
-            width: 100%;
-            height: 100%;
-            background: #000;
-            border: 4px solid #fff;
-            display: block;
-            box-sizing: border-box;
-        }
-
-        /* LANDSCAPE FORCE OVERLAY */
-        #orientation-overlay {
-            display: none; /* Hidden by default */
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100svh;
-            background-color: #111;
-            color: #fff;
-            z-index: 9999;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-        }
-
-        .phone-icon {
-            font-size: 50px;
-            margin-bottom: 20px;
-            animation: rotatePhone 2s infinite ease-in-out;
-        }
-
-        @keyframes rotatePhone {
-            0% { transform: rotate(0deg); }
-            50% { transform: rotate(-90deg); }
-            100% { transform: rotate(-90deg); }
-        }
-
-        /* Trigger overlay only on mobile screen aspect ratios held vertically */
-        @media screen and (max-aspect-ratio: 13/9) and (max-width: 1024px) {
-            #orientation-overlay {
-                display: flex;
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+        <title>Responsive Pong - Landscape Fixed</title>
+        <style>
+            /* Force the browser window to act as an unscrollable, rigid frame */
+            html, body {
+                margin: 0;
+                padding: 0;
+                background-color: #111;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+                font-family: sans-serif;
+                position: fixed; 
+                touch-action: none; /* Prevents pull-to-refresh mobile browser behaviors */
             }
+    
             #game-container {
-                display: none;
+                width: 100%;
+                height: 100%;
+                box-sizing: border-box;
+                padding: 15px; /* Clean border safety margin */
+                display: flex;
+                justify-content: center;
+                align-items: center;
             }
+    
+            canvas {
+                max-width: 100%;
+                max-height: 100%;
+                width: auto;
+                height: auto;
+                background: #000;
+                border: 4px solid #fff;
+                display: block;
+                box-sizing: border-box;
+            }
+    
+            /* LANDSCAPE FORCE OVERLAY */
+            #orientation-overlay {
+                display: none; /* Hidden unless vertical rules trigger */
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: #111;
+                color: #fff;
+                z-index: 9999;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                text-align: center;
+            }
+    
+            .phone-icon {
+                font-size: 50px;
+                margin-bottom: 20px;
+                animation: rotatePhone 2s infinite ease-in-out;
+            }
+    
+            @keyframes rotatePhone {
+                0% { transform: rotate(0deg); }
+                50% { transform: rotate(-90deg); }
+                100% { transform: rotate(-90deg); }
+            }
+    
+            /* Trigger overlay on tall aspect ratios (phones held vertically) */
+            @media screen and (max-aspect-ratio: 13/9) and (max-width: 1024px) {
+                #orientation-overlay {
+                    display: flex;
+                }
+                #game-container {
+                    display: none;
+                }
+            }
+        </style>
+    </head>
+    <body>
+    
+    <!-- The Force-Landscape Overlay -->
+    <div id="orientation-overlay">
+        <div class="phone-icon">📱</div>
+        <h2>Please Rotate Your Device</h2>
+        <p>This game requires landscape mode.</p>
+    </div>
+    
+    <div id="game-container">
+        <canvas id="pongCanvas"></canvas>
+    </div>
+    
+    <script>
+    const canvas = document.getElementById("pongCanvas");
+    const ctx = canvas.getContext("2d");
+    
+    // INTERNAL GAME LOGIC VALUES
+    const LOGIC_HEIGHT = 600;
+    let LOGIC_WIDTH = 800; 
+    
+    // Game State Values
+    const ball = { x: 0, y: 0, radius: 10, speedX: 5, speedY: 5 };
+    const paddleWidth = 15;
+    const paddleHeight = 100;
+    const player = { x: 20, y: 0, score: 0 };
+    const ai = { x: 0, y: 0, score: 0 };
+    
+    function resize() {
+        const container = document.getElementById("game-container");
+        
+        // Explicitly lock the container to actual browser viewable pixel dimensions
+        container.style.height = window.innerHeight + "px";
+    
+        const rect = canvas.getBoundingClientRect();
+        if (rect.height === 0) return; // Keeps calculations safe when hidden by overlay
+    
+        // Recalculate internal coordinate width based on visual aspect layout 
+        const visualRatio = rect.width / rect.height;
+        canvas.height = LOGIC_HEIGHT;
+        canvas.width = LOGIC_HEIGHT * visualRatio;
+        LOGIC_WIDTH = canvas.width;
+    
+        // Adjust entity dimensions relative to structural changes
+        player.y = LOGIC_HEIGHT / 2 - paddleHeight / 2;
+        ai.x = LOGIC_WIDTH - paddleWidth - 20;
+        ai.y = LOGIC_HEIGHT / 2 - paddleHeight / 2;
+        
+        resetBall();
+    }
+    
+    function resetBall() {
+        ball.x = LOGIC_WIDTH / 2;
+        ball.y = LOGIC_HEIGHT / 2;
+        ball.speedX = (Math.random() > 0.5 ? 6 : -6);
+        ball.speedY = (Math.random() * 6) - 3;
+    }
+    
+    // Input Calculations
+    function movePaddle(clientY) {
+        const rect = canvas.getBoundingClientRect();
+        // Maps screen click height to structural 600px coordinates cleanly
+        const scaleY = LOGIC_HEIGHT / rect.height;
+        const canvasY = (clientY - rect.top) * scaleY;
+        player.y = canvasY - paddleHeight / 2;
+        
+        // Boundary locking
+        if (player.y < 0) player.y = 0;
+        if (player.y > LOGIC_HEIGHT - paddleHeight) player.y = LOGIC_HEIGHT - paddleHeight;
+    }
+    
+    // Desktop Controls
+    window.addEventListener("mousemove", (e) => movePaddle(e.clientY));
+    
+    // Mobile Touch Controls
+    window.addEventListener("touchmove", (e) => {
+        if(e.touches.length > 0) {
+            movePaddle(e.touches[0].clientY);
         }
-    </style>
-</head>
-<body>
-
-<!-- The Force-Landscape Overlay -->
-<div id="orientation-overlay">
-    <div class="phone-icon">📱</div>
-    <h2>Please Rotate Your Device</h2>
-    <p>This game requires landscape mode.</p>
-</div>
-
-<div id="game-container">
-    <canvas id="pongCanvas"></canvas>
-</div>
-
-<script>
-const canvas = document.getElementById("pongCanvas");
-const ctx = canvas.getContext("2d");
-
-// INTERNAL LOGIC RESOLUTION
-const LOGIC_HEIGHT = 600;
-let LOGIC_WIDTH = 800; 
-
-// Game State
-const ball = { x: 0, y: 0, radius: 10, speedX: 5, speedY: 5 };
-const paddleWidth = 15;
-const paddleHeight = 100;
-const player = { x: 10, y: 0, score: 0 };
-const ai = { x: 0, y: 0, score: 0 };
-
-function resize() {
-    const rect = canvas.getBoundingClientRect();
-    if (rect.height === 0) return; // Prevent division by zero if hidden
-
-    const visualRatio = rect.width / rect.height;
+    }, { passive: false });
     
-    canvas.height = LOGIC_HEIGHT;
-    canvas.width = LOGIC_HEIGHT * visualRatio;
-    LOGIC_WIDTH = canvas.width;
-
-    player.y = LOGIC_HEIGHT / 2 - paddleHeight / 2;
-    ai.x = LOGIC_WIDTH - paddleWidth - 10;
-    ai.y = LOGIC_HEIGHT / 2 - paddleHeight / 2;
+    // Block default touch browser actions on the screen canvas element
+    window.addEventListener("touchstart", (e) => { if(e.target === canvas) e.preventDefault(); }, { passive: false });
+    window.addEventListener("touchend", (e) => { if(e.target === canvas) e.preventDefault(); }, { passive: false });
     
-    resetBall();
-}
-
-function resetBall() {
-    ball.x = LOGIC_WIDTH / 2;
-    ball.y = LOGIC_HEIGHT / 2;
-    ball.speedX = (Math.random() > 0.5 ? 6 : -6);
-    ball.speedY = (Math.random() * 6) - 3;
-}
-
-// Input Handling
-function movePaddle(clientY) {
-    const rect = canvas.getBoundingClientRect();
-    const scaleY = LOGIC_HEIGHT / rect.height;
-    const canvasY = (clientY - rect.top) * scaleY;
-    player.y = canvasY - paddleHeight / 2;
+    function update() {
+        // Ball Movement Vectors
+        ball.x += ball.speedX;
+        ball.y += ball.speedY;
     
-    if (player.y < 0) player.y = 0;
-    if (player.y > LOGIC_HEIGHT - paddleHeight) player.y = LOGIC_HEIGHT - paddleHeight;
-}
-
-window.addEventListener("mousemove", (e) => movePaddle(e.clientY));
-window.addEventListener("touchmove", (e) => {
-    if(e.touches.length > 0) {
-        movePaddle(e.touches[0].clientY);
+        // Floor and Ceiling Collisions
+        if (ball.y - ball.radius < 0 || ball.y + ball.radius > LOGIC_HEIGHT) {
+            ball.speedY = -ball.speedY;
+        }
+    
+        // AI Follow Calculations
+        const aiTarget = ball.y - paddleHeight / 2;
+        ai.y += (aiTarget - ai.y) * 0.12; 
+    
+        // Determine target paddle side 
+        let paddle = (ball.x < LOGIC_WIDTH / 2) ? player : ai;
+        if (detectCollision(ball, paddle)) {
+            ball.speedX = -ball.speedX;
+            // Changes reflection angle depending on location hit on the paddle structure
+            let hitPoint = (ball.y - (paddle.y + paddleHeight/2)) / (paddleHeight/2);
+            ball.speedY = hitPoint * 6;
+        }
+    
+        // Checking Score Zones
+        if (ball.x < 0) {
+            ai.score++;
+            resetBall();
+        } else if (ball.x > LOGIC_WIDTH) {
+            player.score++;
+            resetBall();
+        }
     }
-}, { passive: false });
-
-// Prevent mobile browser drag-down-to-refresh behaviors
-window.addEventListener("touchstart", (e) => { if(e.target === canvas) e.preventDefault(); }, { passive: false });
-window.addEventListener("touchend", (e) => { if(e.target === canvas) e.preventDefault(); }, { passive: false });
-
-function update() {
-    ball.x += ball.speedX;
-    ball.y += ball.speedY;
-
-    if (ball.y - ball.radius < 0 || ball.y + ball.radius > LOGIC_HEIGHT) {
-        ball.speedY = -ball.speedY;
+    
+    function detectCollision(b, p) {
+        return b.x + b.radius > p.x && 
+               b.x - b.radius < p.x + paddleWidth && 
+               b.y + b.radius > p.y && 
+               b.y - b.radius < p.y + paddleHeight;
     }
-
-    const aiTarget = ball.y - paddleHeight / 2;
-    ai.y += (aiTarget - ai.y) * 0.12; 
-
-    let paddle = (ball.x < LOGIC_WIDTH / 2) ? player : ai;
-    if (detectCollision(ball, paddle)) {
-        ball.speedX = -ball.speedX;
-        let hitPoint = (ball.y - (paddle.y + paddleHeight/2)) / (paddleHeight/2);
-        ball.speedY = hitPoint * 6;
+    
+    function draw() {
+        // Render Background Frame
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, LOGIC_WIDTH, LOGIC_HEIGHT);
+    
+        // Render Middle Line Markings
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(LOGIC_WIDTH / 2, 0);
+        ctx.lineTo(LOGIC_WIDTH / 2, LOGIC_HEIGHT);
+        ctx.stroke();
+    
+        // Render Paddles
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(player.x, player.y, paddleWidth, paddleHeight);
+        ctx.fillRect(ai.x, ai.y, paddleWidth, paddleHeight);
+    
+        // Render Game Ball
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        ctx.fill();
+    
+        // Render Scores Text
+        ctx.font = "bold 40px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(player.score, LOGIC_WIDTH / 4, 60);
+        ctx.fillText(ai.score, (LOGIC_WIDTH / 4) * 3, 60);
     }
-
-    if (ball.x < 0) {
-        ai.score++;
-        resetBall();
-    } else if (ball.x > LOGIC_WIDTH) {
-        player.score++;
-        resetBall();
+    
+    function loop() {
+        update();
+        draw();
+        requestAnimationFrame(loop);
     }
-}
+    
+    // Window Event Listeners
+    window.addEventListener("resize", resize);
+    window.addEventListener("orientationchange", () => {
+        setTimeout(resize, 200); 
+    });
+    
+    // Run Setup Loop
+    resize();
+    loop();
+    </script>
+    </body>
+    </html>
+    
 
-function detectCollision(b, p) {
-    return b.x + b.radius > p.x && 
-           b.x - b.radius < p.x + paddleWidth && 
-           b.y + b.radius > p.y && 
-           b.y - b.radius < p.y + paddleHeight;
-}
-
-function draw() {
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, LOGIC_WIDTH, LOGIC_HEIGHT);
-
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 2;
-    ctx.setLineDash([10, 10]);
-    ctx.beginPath();
-    ctx.moveTo(LOGIC_WIDTH / 2, 0);
-    ctx.lineTo(LOGIC_WIDTH / 2, LOGIC_HEIGHT);
-    ctx.stroke();
-
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(player.x, player.y, paddleWidth, paddleHeight);
-    ctx.fillRect(ai.x, ai.y, paddleWidth, paddleHeight);
-
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.font = "bold 40px monospace";
-    ctx.textAlign = "center";
-    ctx.fillText(player.score, LOGIC_WIDTH / 4, 60);
-    ctx.fillText(ai.score, (LOGIC_WIDTH / 4) * 3, 60);
-}
-
-function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
-}
-
-window.addEventListener("resize", resize);
-// Handle mobile orientation shifts natively
-window.addEventListener("orientationchange", () => {
-    setTimeout(resize, 200); // Small delay lets the browser finish rotating layout
-});
-
-resize();
-loop();
-</script>
-</body>
-</html>
+Use code with caution.
