@@ -58,12 +58,25 @@
 <canvas id="game"></canvas>
 
 <script>
+/* ------------------------------
+   FIXED GAME RESOLUTION
+------------------------------ */
 const GAME_WIDTH = 480;
 const GAME_HEIGHT = 270;
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
+/* ------------------------------
+   GLOBAL TRANSFORM VALUES
+------------------------------ */
+let scale = 1;
+let offsetX = 0;
+let offsetY = 0;
+
+/* ------------------------------
+   GAME STATE
+------------------------------ */
 let bird, pipes, lastTime, running, score;
 
 /* ------------------------------
@@ -123,7 +136,7 @@ function resizeCanvas() {
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
 
-    const scale = Math.min(
+    scale = Math.min(
         windowWidth / GAME_WIDTH,
         windowHeight / GAME_HEIGHT
     );
@@ -134,11 +147,8 @@ function resizeCanvas() {
     canvas.width = windowWidth;
     canvas.height = windowHeight;
 
-    ctx.setTransform(
-        scale, 0, 0, scale,
-        (windowWidth - scaledWidth) / 2,
-        (windowHeight - scaledHeight) / 2
-    );
+    offsetX = (windowWidth - scaledWidth) / 2;
+    offsetY = (windowHeight - scaledHeight) / 2;
 }
 
 window.addEventListener("resize", () => setTimeout(resizeCanvas, 50));
@@ -213,11 +223,19 @@ function checkPipeCollision(bird, pipe) {
 }
 
 /* ------------------------------
-   DRAW
+   DRAW — FIXED TRANSFORM LOGIC
 ------------------------------ */
 function draw() {
-    ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    // 1. Reset transform
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
 
+    // 2. Clear entire screen
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 3. Reapply game transform
+    ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+
+    // 4. Draw game world
     ctx.fillStyle = "#70c5ce";
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
