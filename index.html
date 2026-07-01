@@ -1,11 +1,10 @@
-<!DOCTYPE html>
+<!DOCTYPE html><!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Itch.io Style Fullscreen Test</title>
+    <title>Flappy Bird Mobile Scale Test</title>
     <style>
-        /* Lock down scrolling completely */
         html, body {
             margin: 0;
             padding: 0;
@@ -13,8 +12,10 @@
             height: 100%;
             overflow: hidden;
             position: fixed; 
-            background-color: #111;
-            font-family: sans-serif;
+            background-color: #000;
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         canvas {
@@ -24,46 +25,48 @@
             left: 0;
         }
 
-        /* Splash overlay mimicking Itch.io's "Run Game" button trigger */
         #splashScreen {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: #1a1a1a;
+            background-color: #4ec0ca; /* Classic flappy bird sky blue */
             z-index: 9999;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             color: #fff;
+            text-shadow: 2px 2px 0px #000;
             transition: opacity 0.3s ease;
         }
 
         #playButton {
             padding: 15px 40px;
-            font-size: 22px;
+            font-size: 24px;
             font-weight: bold;
-            background-color: #fa5c5c; /* Itch.io pink-red color theme */
+            font-family: inherit;
+            background-color: #e86101; /* Flappy orange */
             color: white;
-            border: none;
-            border-radius: 4px;
+            border: 3px solid #fff;
+            border-radius: 8px;
             cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            box-shadow: 0 6px 0px #a04000;
         }
 
         #playButton:active {
-            transform: scale(0.98);
+            transform: translateY(4px);
+            box-shadow: 0 2px 0px #a04000;
         }
     </style>
 </head>
 <body>
 
-    <!-- Splash Screen required to unlock mobile Fullscreen permissions -->
     <div id="splashScreen">
-        <h2 style="margin-bottom: 20px;">My Awesome Web Game</h2>
-        <button id="playButton">Run Game</button>
+        <h1 style="font-size: 36px; margin-bottom: 5px;">FLAPPY BIRD</h1>
+        <p style="font-size: 16px; margin-bottom: 30px; color: #f7e652;">HTML5 MOBILE TEST</p>
+        <button id="playButton">RUN GAME</button>
     </div>
 
     <canvas id="gameCanvas"></canvas>
@@ -74,107 +77,527 @@
         const splash = document.getElementById('splashScreen');
         const playBtn = document.getElementById('playButton');
 
-        // Fixed internal dimensions for aspect ratio calculations
-        const VIRTUAL_WIDTH = 800;
+        // Retro arcade layout proportions (Tall portrait frame)
+        const VIRTUAL_WIDTH = 450;
         const VIRTUAL_HEIGHT = 600;
 
-        // 1. CLICK EVENT TO TRIGGER NATIVE FULLSCREEN
+        // Scaling tracking variables for translating touch grid points
+        let currentScale = 1;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        // --- GAME STATES ---
+        const STATE_START = 0;
+        const STATE_PLAYING = 1;
+        const STATE_GAMEOVER = 2;
+        let gameState = STATE_START;
+
+        // --- GAME OBJECTS & CONFIG ---
+        let score = 0;
+        let highScore = 0;
+
+        const bird = {
+            x: 100,
+            y: 250,
+            radius: 14,
+            velocity: 0,
+            gravity: 0.4,
+            jump: -7.5
+        };
+
+        let pipes = [];
+        const pipeConfig = {
+            width: 65,
+            gap: 130,
+            speed: 2.5,
+            spawnRate: 90, // Frames between spawn cycles
+            timer: 0
+        };
+
+        // --- UNLOCK FULLSCREEN ENGINE ---
         playBtn.addEventListener('click', () => {
             const docElm = document.documentElement;
+            if (docElm.requestFullscreen) docElm.requestFullscreen();
+            else if (docElm.webkitRequestFullscreen) docElm.webkitRequestFullscreen();
 
-            // Execute the exact native browser API calls that remove the URL bar
-            if (docElm.requestFullscreen) {
-                docElm.requestFullscreen();
-            } else if (docElm.webkitRequestFullscreen) { /* iOS Safari support */
-                docElm.webkitRequestFullscreen();
-            } else if (docElm.msRequestFullscreen) {
-                docElm.msRequestFullscreen();
-            }
-
-            // Hide the splash panel layout out of sight
             splash.style.opacity = '0';
-            setTimeout(() => splash.style.display = 'none', 300);
+            setTimeout(() => {
+                splash.style.display = 'none';
+                resetGame();
+                // Start tracking logic frame intervals safely
+                setInterval(updateGame, 1000 / 60); 
+                requestAnimationFrame(renderLoop);
+            }, 300);
             
-            // Kick off sizing loops immediately
             resizeCanvas();
         });
 
-        // 2. RESIZE HANDLER WITH FIXED ASPECT RATIO (LETTERBOX / BLACK BARS)
-        // This ensures landscape stays looking crisp without stretching graphics out of proportion
+        // --- RESPONSIVE LETTERBOX MATH ---
         function resizeCanvas() {
-            // Read true inner window limits
             const windowWidth = window.innerWidth;
             const windowHeight = window.innerHeight;
 
-            // Calculate optimal scaling limit keeping the 800x600 structure
-            const scale = Math.min(windowWidth / VIRTUAL_WIDTH, windowHeight / VIRTUAL_HEIGHT);
+            currentScale = Math.min(windowWidth / VIRTUAL_WIDTH, windowHeight / VIRTUAL_HEIGHT);
+            
+            offsetX = (windowWidth - (VIRTUAL_WIDTH * currentScale)) / 2;
+            offsetY = (windowHeight - (VIRTUAL_HEIGHT * currentScale)) / 2;
 
-            // Determine dimensions for centered viewport bounding box
-            const newWidth = VIRTUAL_WIDTH * scale;
-            const newHeight = VIRTUAL_HEIGHT * scale;
-
-            // Set canvas size buffer to occupy the entire browser viewport
             canvas.width = windowWidth;
             canvas.height = windowHeight;
-
-            // Clear the viewport completely
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Push context frame origins to center the canvas screen container
-            ctx.save();
-            ctx.translate((windowWidth - newWidth) / 2, (windowHeight - newHeight) / 2);
-            ctx.scale(scale, scale);
-
-            // -------------------------------------------------------------
-            // GAME RENDERING INSIDE THE SAFE WINDOW (VIRTUAL 800x600)
-            // -------------------------------------------------------------
-            // Background box boundaries
-            ctx.fillStyle = '#22252a';
-            ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
-
-            // Corner decorative squares to test aspect alignment accuracy
-            ctx.fillStyle = '#fa5c5c';
-            ctx.fillRect(20, 20, 60, 60); // Top-left
-            ctx.fillRect(VIRTUAL_WIDTH - 80, 20, 60, 60); // Top-right
-            ctx.fillRect(20, VIRTUAL_HEIGHT - 80, 60, 60); // Bottom-left
-            ctx.fillRect(VIRTUAL_WIDTH - 80, VIRTUAL_HEIGHT - 80, 60, 60); // Bottom-right
-
-            // Central layout shapes
-            ctx.fillStyle = '#4caf50';
-            ctx.fillRect(325, 225, 150, 150);
-
-            // Information details text overlays
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 24px sans-serif';
-            ctx.fillText('Itch.io Mode Enabled', 50, 200);
-            ctx.font = '16px sans-serif';
-            ctx.fillText(`Window size: ${windowWidth}x${windowHeight}`, 50, 240);
-            ctx.fillText('URL bar is hidden successfully', 50, 270);
-            // -------------------------------------------------------------
-
-            ctx.restore();
         }
 
-        // 3. LISTEN FOR RESIZE & FULLSCREEN STATE ADJUSTMENTS
+        // --- INPUT CONTROLS ---
+        function handleAction(e) {
+            e.preventDefault(); // Stop mobile browsers from zooming on rapid clicks
+            
+            if (gameState === STATE_START) {
+                gameState = STATE_PLAYING;
+                bird.velocity = bird.jump;
+            } else if (gameState === STATE_PLAYING) {
+                bird.velocity = bird.jump;
+            } else if (gameState === STATE_GAMEOVER) {
+                resetGame();
+                gameState = STATE_PLAYING;
+            }
+        }
+
+        // Universal Event Triggers
+        window.addEventListener('mousedown', handleAction);
+        window.addEventListener('touchstart', handleAction, { passive: false });
+        window.addEventListener('keydown', (e) => { if (e.code === 'Space') handleAction(e); });
+
+        // Window state mutations
         window.addEventListener('resize', resizeCanvas);
         window.addEventListener('orientationchange', resizeCanvas);
-        
-        // Return splash panel visibility if player escapes Fullscreen manually
-        document.addEventListener('fullscreenchange', () => {
-            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-                splash.style.display = 'flex';
-                splash.style.opacity = '1';
+
+        // --- ENGINE LOGIC ---
+        function resetGame() {
+            bird.y = 250;
+            bird.velocity = 0;
+            pipes = [];
+            pipeConfig.timer = 0;
+            score = 0;
+        }
+
+        function updateGame() {
+            if (gameState !== STATE_PLAYING) return;
+
+            // Physics processing
+            bird.velocity += bird.gravity;
+            bird.y += bird.velocity;
+
+            // Roof & Floor boundary collapse checks
+            if (bird.y - bird.radius < 0) bird.y = bird.radius;
+            if (bird.y + bird.radius >= VIRTUAL_HEIGHT - 50) {
+                endGame();
             }
-        });
-        document.addEventListener('webkitfullscreenchange', () => {
-            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-                splash.style.display = 'flex';
-                splash.style.opacity = '1';
+
+            // Pipe pipeline lifecycle adjustments
+            pipeConfig.timer++;
+            if (pipeConfig.timer >= pipeConfig.spawnRate) {
+                pipeConfig.timer = 0;
+                // Generate safe random corridor heights
+                const minHeight = 50;
+                const maxHeight = VIRTUAL_HEIGHT - 50 - pipeConfig.gap - minHeight;
+                const topPipeHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+
+                pipes.push({
+                    x: VIRTUAL_WIDTH,
+                    topHeight: topPipeHeight,
+                    passed: false
+                });
             }
+
+            // Cycle pipeline calculations
+            for (let i = pipes.length - 1; i >= 0; i--) {
+                const p = pipes[i];
+                p.x -= pipeConfig.speed;
+
+                // Collision tracking checks
+                if (
+                    bird.x + bird.radius > p.x && 
+                    bird.x - bird.radius < p.x + pipeConfig.width
+                ) {
+                    if (bird.y - bird.radius < p.topHeight || bird.y + bird.radius > p.topHeight + pipeConfig.gap) {
+                        endGame();
+                    }
+                }
+
+                // Score metric processing
+                if (!p.passed && p.x + pipeConfig.width / 2 < bird.x) {
+                    p.passed = true;
+                    score++;
+                    if (score > highScore) highScore = score;
+                }
+
+                // Clean memory boundaries
+                if (p.x + pipeConfig.width < 0) {
+                    pipes.splice(i, 1);
+                }
+            }
+        }
+
+        function endGame() {
+            gameState = STATE_GAMEOVER;
+        }
+
+        // --- DRAWING LOOPS ---
+        function renderLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            
+            // Lock graphics grid within letterbox boundaries
+            ctx.translate(offsetX, offsetY);
+            ctx.scale(currentScale, currentScale);
+
+            // Draw Background Sky
+            ctx.fillStyle = '#4ec0ca';
+            ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+
+            // Render Obstacles Pipeline
+            pipes.forEach(p => {
+                ctx.fillStyle = '#73bf2e';
+                ctx.strokeStyle = '#558022';
+                ctx.lineWidth = 4;
+
+                // Top Pipe component
+                ctx.fillRect(p.x, 0, pipeConfig.width, p.topHeight);
+                ctx.strokeRect(p.x, 0, pipeConfig.width, p.topHeight);
+
+                // Bottom Pipe component
+                const bottomY = p.topHeight + pipeConfig.gap;
+                const bottomH = VIRTUAL_HEIGHT - 50 - bottomY;
+                ctx.fillRect(p.x, bottomY, pipeConfig.width, bottomH);
+                ctx.strokeRect(p.x, bottomY, pipeConfig.width, bottomH);
+            });
+
+            // Draw Base Floor Bed
+            ctx.fillStyle = '#d4a373';
+            ctx.fillRect(0, VIRTUAL_HEIGHT - 50, VIRTUAL_WIDTH, 50);
+            ctx.fillStyle = '#55a630';
+            ctx.fillRect(0, VIRTUAL_HEIGHT - 50, VIRTUAL_WIDTH, 12);
+
+            // Draw Player Bird Capsule
+            ctx.fillStyle = '#f7e652';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(bird.x, bird.y, bird.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            // Draw Bird Eye Details
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(bird.x + 6, bird.y - 4, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Text Overlays & UI Rendering
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 4;
+            ctx.textAlign = 'center';
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Flappy Bird Mobile Scale Test</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: fixed; 
+            background-color: #000;
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #splashScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #4ec0ca; /* Classic flappy bird sky blue */
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            text-shadow: 2px 2px 0px #000;
+            transition: opacity 0.3s ease;
+        }
+
+        #playButton {
+            padding: 15px 40px;
+            font-size: 24px;
+            font-weight: bold;
+            font-family: inherit;
+            background-color: #e86101; /* Flappy orange */
+            color: white;
+            border: 3px solid #fff;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 6px 0px #a04000;
+        }
+
+        #playButton:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0px #a04000;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="splashScreen">
+        <h1 style="font-size: 36px; margin-bottom: 5px;">FLAPPY BIRD</h1>
+        <p style="font-size: 16px; margin-bottom: 30px; color: #f7e652;">HTML5 MOBILE TEST</p>
+        <button id="playButton">RUN GAME</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const splash = document.getElementById('splashScreen');
+        const playBtn = document.getElementById('playButton');
+
+        // Retro arcade layout proportions (Tall portrait frame)
+        const VIRTUAL_WIDTH = 450;
+        const VIRTUAL_HEIGHT = 600;
+
+        // Scaling tracking variables for translating touch grid points
+        let currentScale = 1;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        // --- GAME STATES ---
+        const STATE_START = 0;
+        const STATE_PLAYING = 1;
+        const STATE_GAMEOVER = 2;
+        let gameState = STATE_START;
+
+        // --- GAME OBJECTS & CONFIG ---
+        let score = 0;
+        let highScore = 0;
+
+        const bird = {
+            x: 100,
+            y: 250,
+            radius: 14,
+            velocity: 0,
+            gravity: 0.4,
+            jump: -7.5
+        };
+
+        let pipes = [];
+        const pipeConfig = {
+            width: 65,
+            gap: 130,
+            speed: 2.5,
+            spawnRate: 90, // Frames between spawn cycles
+            timer: 0
+        };
+
+        // --- UNLOCK FULLSCREEN ENGINE ---
+        playBtn.addEventListener('click', () => {
+            const docElm = document.documentElement;
+            if (docElm.requestFullscreen) docElm.requestFullscreen();
+            else if (docElm.webkitRequestFullscreen) docElm.webkitRequestFullscreen();
+
+            splash.style.opacity = '0';
+            setTimeout(() => {
+                splash.style.display = 'none';
+                resetGame();
+                // Start tracking logic frame intervals safely
+                setInterval(updateGame, 1000 / 60); 
+                requestAnimationFrame(renderLoop);
+            }, 300);
+            
+            resizeCanvas();
         });
 
-        // Initialize sizing bounds setup
-        resizeCanvas();
-    </script>
-</body>
-</html>
+        // --- RESPONSIVE LETTERBOX MATH ---
+        function resizeCanvas() {
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+
+            currentScale = Math.min(windowWidth / VIRTUAL_WIDTH, windowHeight / VIRTUAL_HEIGHT);
+            
+            offsetX = (windowWidth - (VIRTUAL_WIDTH * currentScale)) / 2;
+            offsetY = (windowHeight - (VIRTUAL_HEIGHT * currentScale)) / 2;
+
+            canvas.width = windowWidth;
+            canvas.height = windowHeight;
+        }
+
+        // --- INPUT CONTROLS ---
+        function handleAction(e) {
+            e.preventDefault(); // Stop mobile browsers from zooming on rapid clicks
+            
+            if (gameState === STATE_START) {
+                gameState = STATE_PLAYING;
+                bird.velocity = bird.jump;
+            } else if (gameState === STATE_PLAYING) {
+                bird.velocity = bird.jump;
+            } else if (gameState === STATE_GAMEOVER) {
+                resetGame();
+                gameState = STATE_PLAYING;
+            }
+        }
+
+        // Universal Event Triggers
+        window.addEventListener('mousedown', handleAction);
+        window.addEventListener('touchstart', handleAction, { passive: false });
+        window.addEventListener('keydown', (e) => { if (e.code === 'Space') handleAction(e); });
+
+        // Window state mutations
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', resizeCanvas);
+
+        // --- ENGINE LOGIC ---
+        function resetGame() {
+            bird.y = 250;
+            bird.velocity = 0;
+            pipes = [];
+            pipeConfig.timer = 0;
+            score = 0;
+        }
+
+        function updateGame() {
+            if (gameState !== STATE_PLAYING) return;
+
+            // Physics processing
+            bird.velocity += bird.gravity;
+            bird.y += bird.velocity;
+
+            // Roof & Floor boundary collapse checks
+            if (bird.y - bird.radius < 0) bird.y = bird.radius;
+            if (bird.y + bird.radius >= VIRTUAL_HEIGHT - 50) {
+                endGame();
+            }
+
+            // Pipe pipeline lifecycle adjustments
+            pipeConfig.timer++;
+            if (pipeConfig.timer >= pipeConfig.spawnRate) {
+                pipeConfig.timer = 0;
+                // Generate safe random corridor heights
+                const minHeight = 50;
+                const maxHeight = VIRTUAL_HEIGHT - 50 - pipeConfig.gap - minHeight;
+                const topPipeHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+
+                pipes.push({
+                    x: VIRTUAL_WIDTH,
+                    topHeight: topPipeHeight,
+                    passed: false
+                });
+            }
+
+            // Cycle pipeline calculations
+            for (let i = pipes.length - 1; i >= 0; i--) {
+                const p = pipes[i];
+                p.x -= pipeConfig.speed;
+
+                // Collision tracking checks
+                if (
+                    bird.x + bird.radius > p.x && 
+                    bird.x - bird.radius < p.x + pipeConfig.width
+                ) {
+                    if (bird.y - bird.radius < p.topHeight || bird.y + bird.radius > p.topHeight + pipeConfig.gap) {
+                        endGame();
+                    }
+                }
+
+                // Score metric processing
+                if (!p.passed && p.x + pipeConfig.width / 2 < bird.x) {
+                    p.passed = true;
+                    score++;
+                    if (score > highScore) highScore = score;
+                }
+
+                // Clean memory boundaries
+                if (p.x + pipeConfig.width < 0) {
+                    pipes.splice(i, 1);
+                }
+            }
+        }
+
+        function endGame() {
+            gameState = STATE_GAMEOVER;
+        }
+
+        // --- DRAWING LOOPS ---
+        function renderLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            
+            // Lock graphics grid within letterbox boundaries
+            ctx.translate(offsetX, offsetY);
+            ctx.scale(currentScale, currentScale);
+
+            // Draw Background Sky
+            ctx.fillStyle = '#4ec0ca';
+            ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+
+            // Render Obstacles Pipeline
+            pipes.forEach(p => {
+                ctx.fillStyle = '#73bf2e';
+                ctx.strokeStyle = '#558022';
+                ctx.lineWidth = 4;
+
+                // Top Pipe component
+                ctx.fillRect(p.x, 0, pipeConfig.width, p.topHeight);
+                ctx.strokeRect(p.x, 0, pipeConfig.width, p.topHeight);
+
+                // Bottom Pipe component
+                const bottomY = p.topHeight + pipeConfig.gap;
+                const bottomH = VIRTUAL_HEIGHT - 50 - bottomY;
+                ctx.fillRect(p.x, bottomY, pipeConfig.width, bottomH);
+                ctx.strokeRect(p.x, bottomY, pipeConfig.width, bottomH);
+            });
+
+            // Draw Base Floor Bed
+            ctx.fillStyle = '#d4a373';
+            ctx.fillRect(0, VIRTUAL_HEIGHT - 50, VIRTUAL_WIDTH, 50);
+            ctx.fillStyle = '#55a630';
+            ctx.fillRect(0, VIRTUAL_HEIGHT - 50, VIRTUAL_WIDTH, 12);
+
+            // Draw Player Bird Capsule
+            ctx.fillStyle = '#f7e652';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(bird.x, bird.y, bird.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            // Draw Bird Eye Details
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(bird.x + 6, bird.y - 4, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Text Overlays & UI Rendering
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 4;
+            ctx.textAlign = 'center';
+
+            ctx.font = 'bold 32px inherit';
+            if (gameState === STATE_START || gameState === STATE_PLAYING) {ctx.fillText(score, VIRTUAL_WIDTH / 2, 80);ctx.strokeText(score, VIRTUAL_WIDTH / 2, 80);}if (gameState === STATE_START) {ctx.font = '20px inherit';ctx.fillText('TAP OR PRESS SPACE TO FLY', VIRTUAL_WIDTH / 2, 350);ctx.strokeText('TAP OR PRESS SPACE TO FLY', VIRTUAL_WIDTH / 2, 350);}if (gameState === STATE_GAMEOVER) {ctx.fillText('GAME OVER', VIRTUAL_WIDTH / 2, 200);ctx.strokeText('GAME OVER', VIRTUAL_WIDTH / 2, 200);ctx.font = '20px inherit';ctx.fillText(SCORE: ${score}, VIRTUAL_WIDTH / 2, 260);ctx.strokeText(SCORE: ${score}, VIRTUAL_WIDTH / 2, 260);ctx.fillText(BEST: ${highScore}, VIRTUAL_WIDTH / 2, 300);ctx.strokeText(BEST: ${highScore}, VIRTUAL_WIDTH / 2, 300);ctx.font = '16px inherit';ctx.fillText('TAP TO TRY AGAIN', VIRTUAL_WIDTH / 2, 380);ctx.strokeText('TAP TO TRY AGAIN', VIRTUAL_WIDTH / 2, 380);}ctx.restore();requestAnimationFrame(renderLoop);}// Run initial sizing calculation loopresizeCanvas();
