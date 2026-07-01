@@ -2,11 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <!-- viewport-fit=cover helps handle mobile URL bars and safe zones -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Mobile Canvas Scale Test</title>
+    <title>Itch.io Style Fullscreen Test</title>
     <style>
-        /* Lock down document scrolling entirely to prevent mobile screen bouncing */
+        /* Lock down scrolling completely */
         html, body {
             margin: 0;
             padding: 0;
@@ -14,86 +13,167 @@
             height: 100%;
             overflow: hidden;
             position: fixed; 
-            background-color: #111; /* Dark background */
+            background-color: #111;
+            font-family: sans-serif;
         }
 
         canvas {
-            display: block; /* Removes blank inline spacing at the bottom */
+            display: block;
             position: absolute;
             top: 0;
             left: 0;
         }
+
+        /* Splash overlay mimicking Itch.io's "Run Game" button trigger */
+        #splashScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #1a1a1a;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            transition: opacity 0.3s ease;
+        }
+
+        #playButton {
+            padding: 15px 40px;
+            font-size: 22px;
+            font-weight: bold;
+            background-color: #fa5c5c; /* Itch.io pink-red color theme */
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        #playButton:active {
+            transform: scale(0.98);
+        }
     </style>
 </head>
 <body>
+
+    <!-- Splash Screen required to unlock mobile Fullscreen permissions -->
+    <div id="splashScreen">
+        <h2 style="margin-bottom: 20px;">My Awesome Web Game</h2>
+        <button id="playButton">Run Game</button>
+    </div>
 
     <canvas id="gameCanvas"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        const splash = document.getElementById('splashScreen');
+        const playBtn = document.getElementById('playButton');
 
-        // Define your internal, fixed game design resolution
+        // Fixed internal dimensions for aspect ratio calculations
         const VIRTUAL_WIDTH = 800;
         const VIRTUAL_HEIGHT = 600;
 
-        function resizeCanvas() {
-            // Force the canvas back-buffer to match the true visible mobile viewport
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            
-            // Instantly re-render the game frame when resizing or rotating
-            drawGame();
-        }
+        // 1. CLICK EVENT TO TRIGGER NATIVE FULLSCREEN
+        playBtn.addEventListener('click', () => {
+            const docElm = document.documentElement;
 
-        function drawGame() {
-            // Clear the entire screen
+            // Execute the exact native browser API calls that remove the URL bar
+            if (docElm.requestFullscreen) {
+                docElm.requestFullscreen();
+            } else if (docElm.webkitRequestFullscreen) { /* iOS Safari support */
+                docElm.webkitRequestFullscreen();
+            } else if (docElm.msRequestFullscreen) {
+                docElm.msRequestFullscreen();
+            }
+
+            // Hide the splash panel layout out of sight
+            splash.style.opacity = '0';
+            setTimeout(() => splash.style.display = 'none', 300);
+            
+            // Kick off sizing loops immediately
+            resizeCanvas();
+        });
+
+        // 2. RESIZE HANDLER WITH FIXED ASPECT RATIO (LETTERBOX / BLACK BARS)
+        // This ensures landscape stays looking crisp without stretching graphics out of proportion
+        function resizeCanvas() {
+            // Read true inner window limits
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+
+            // Calculate optimal scaling limit keeping the 800x600 structure
+            const scale = Math.min(windowWidth / VIRTUAL_WIDTH, windowHeight / VIRTUAL_HEIGHT);
+
+            // Determine dimensions for centered viewport bounding box
+            const newWidth = VIRTUAL_WIDTH * scale;
+            const newHeight = VIRTUAL_HEIGHT * scale;
+
+            // Set canvas size buffer to occupy the entire browser viewport
+            canvas.width = windowWidth;
+            canvas.height = windowHeight;
+
+            // Clear the viewport completely
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Save current drawing state
+
+            // Push context frame origins to center the canvas screen container
             ctx.save();
-            
-            // Calculate scale factors to match the current inner window sizes
-            const scaleX = canvas.width / VIRTUAL_WIDTH;
-            const scaleY = canvas.height / VIRTUAL_HEIGHT;
-            
-            // Distort/stretch the drawing context matrix to fit the screen bounds
-            ctx.scale(scaleX, scaleY);
-            
+            ctx.translate((windowWidth - newWidth) / 2, (windowHeight - newHeight) / 2);
+            ctx.scale(scale, scale);
+
             // -------------------------------------------------------------
-            // DRAW STUFF HERE USING FIXED 800x600 VIRTUAL COORDINATES
+            // GAME RENDERING INSIDE THE SAFE WINDOW (VIRTUAL 800x600)
             // -------------------------------------------------------------
-            
-            // Draw a blue background border box
-            ctx.fillStyle = '#1e1e24';
+            // Background box boundaries
+            ctx.fillStyle = '#22252a';
             ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
 
-            // Draw a green square in the upper-left area
-            ctx.fillStyle = '#4caf50';
-            ctx.fillRect(50, 50, 150, 150);
+            // Corner decorative squares to test aspect alignment accuracy
+            ctx.fillStyle = '#fa5c5c';
+            ctx.fillRect(20, 20, 60, 60); // Top-left
+            ctx.fillRect(VIRTUAL_WIDTH - 80, 20, 60, 60); // Top-right
+            ctx.fillRect(20, VIRTUAL_HEIGHT - 80, 60, 60); // Bottom-left
+            ctx.fillRect(VIRTUAL_WIDTH - 80, VIRTUAL_HEIGHT - 80, 60, 60); // Bottom-right
 
-            // Draw a red square in the center area
-            ctx.fillStyle = '#f44336';
+            // Central layout shapes
+            ctx.fillStyle = '#4caf50';
             ctx.fillRect(325, 225, 150, 150);
 
-            // Draw text to visually double-check screen tracking info
+            // Information details text overlays
             ctx.fillStyle = '#ffffff';
-            ctx.font = '24px sans-serif';
-            ctx.fillText('Mobile URL Scale Test', 50, VIRTUAL_HEIGHT - 80);
+            ctx.font = 'bold 24px sans-serif';
+            ctx.fillText('Itch.io Mode Enabled', 50, 200);
             ctx.font = '16px sans-serif';
-            ctx.fillText(`Canvas Dimensions: ${canvas.width}x${canvas.height}`, 50, VIRTUAL_HEIGHT - 40);
-            
+            ctx.fillText(`Window size: ${windowWidth}x${windowHeight}`, 50, 240);
+            ctx.fillText('URL bar is hidden successfully', 50, 270);
             // -------------------------------------------------------------
-            
-            // Restore drawing state
+
             ctx.restore();
         }
 
-        // Event listeners for resize and device flip changes
+        // 3. LISTEN FOR RESIZE & FULLSCREEN STATE ADJUSTMENTS
         window.addEventListener('resize', resizeCanvas);
         window.addEventListener('orientationchange', resizeCanvas);
+        
+        // Return splash panel visibility if player escapes Fullscreen manually
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                splash.style.display = 'flex';
+                splash.style.opacity = '1';
+            }
+        });
+        document.addEventListener('webkitfullscreenchange', () => {
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                splash.style.display = 'flex';
+                splash.style.opacity = '1';
+            }
+        });
 
-        // Run immediately on page initialization
+        // Initialize sizing bounds setup
         resizeCanvas();
     </script>
 </body>
