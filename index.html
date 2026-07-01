@@ -2,27 +2,26 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vanilla JS Mobile Scaling Test</title>
+    <!-- viewport-fit=cover helps handle mobile URL bars and safe zones -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Mobile Canvas Scale Test</title>
     <style>
-        /* Force the browser to fill the screen and disable accidental mobile scrolling/bouncing */
+        /* Lock down document scrolling entirely to prevent mobile screen bouncing */
         html, body {
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #111; /* Dark background to see the letterbox black bars */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            touch-action: none; /* Prevents mobile double-tap zoom */
+            position: fixed; 
+            background-color: #111; /* Dark background */
         }
 
         canvas {
-            display: block;
-            background-color: #222; /* Slightly lighter background to see your actual game arena */
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            display: block; /* Removes blank inline spacing at the bottom */
+            position: absolute;
+            top: 0;
+            left: 0;
         }
     </style>
 </head>
@@ -31,103 +30,71 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        const canvas = document.getElementById("gameCanvas");
-        const ctx = canvas.getContext("2d");
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
 
-        // 1. YOUR VIRTUAL GAME LOGIC SIZE
-        // You can code your entire game assuming the screen is ALWAYS exactly 1280x720.
-        const VIRTUAL_WIDTH = 1280;
-        const VIRTUAL_HEIGHT = 720;
-        const TARGET_ASPECT = VIRTUAL_WIDTH / VIRTUAL_HEIGHT;
+        // Define your internal, fixed game design resolution
+        const VIRTUAL_WIDTH = 800;
+        const VIRTUAL_HEIGHT = 600;
 
-        // 2. DYNAMIC PERFORMANCE SCALE
-        // 1.0 = full sharp crisp resolution.
-        // Change this to 0.5 or 0.25 to see the game instantly become pixelated/low-res to save GPU, 
-        // without breaking the layout or the text position!
-        let resolutionScale = 1.0; 
-
-        function resizeGame() {
-            const windowWidth = window.innerWidth;
-            const windowHeight = window.innerHeight;
-            const windowAspect = windowWidth / windowHeight;
-
-            let displayWidth, displayHeight;
-
-            // Maintain aspect ratio calculation (Letterboxing / Pillarboxing)
-            if (windowAspect > TARGET_ASPECT) {
-                // Window is too wide (PC monitors, landscapes tablets)
-                displayHeight = windowHeight;
-                displayWidth = windowHeight * TARGET_ASPECT;
-            } else {
-                // Window is too tall (Mobile phones in portrait or tall aspects)
-                displayWidth = windowWidth;
-                displayHeight = windowWidth / TARGET_ASPECT;
-            }
-
-            // Apply the layout sizing to the canvas CSS bounds
-            canvas.style.width = displayWidth + "px";
-            canvas.style.height = displayHeight + "px";
-
-            // Set actual internal rendering pixel sizes (Handles High-DPI Mobile/Retina screens)
-            const dpr = window.devicePixelRatio || 1;
-            canvas.width = displayWidth * dpr * resolutionScale;
-            canvas.height = displayHeight * dpr * resolutionScale;
-
-            // MAGIC STEP: Scale the rendering context.
-            // This maps your canvas pixels back to your 1280x720 code coordinate limits.
-            ctx.scale(canvas.width / VIRTUAL_WIDTH, canvas.height / VIRTUAL_HEIGHT);
+        function resizeCanvas() {
+            // Force the canvas back-buffer to match the true visible mobile viewport
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
             
-            // Re-apply smoothing rules since canvas resizing wipes context states
-            ctx.imageSmoothingEnabled = true; 
+            // Instantly re-render the game frame when resizing or rotating
+            drawGame();
         }
 
-        // Listen for screen changes and rotation
-        window.addEventListener("resize", resizeGame);
-        window.addEventListener("orientationchange", resizeGame);
-        resizeGame(); // Initial run
+        function drawGame() {
+            // Clear the entire screen
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Save current drawing state
+            ctx.save();
+            
+            // Calculate scale factors to match the current inner window sizes
+            const scaleX = canvas.width / VIRTUAL_WIDTH;
+            const scaleY = canvas.height / VIRTUAL_HEIGHT;
+            
+            // Distort/stretch the drawing context matrix to fit the screen bounds
+            ctx.scale(scaleX, scaleY);
+            
+            // -------------------------------------------------------------
+            // DRAW STUFF HERE USING FIXED 800x600 VIRTUAL COORDINATES
+            // -------------------------------------------------------------
+            
+            // Draw a blue background border box
+            ctx.fillStyle = '#1e1e24';
+            ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
 
-        // 3. SIMPLE GAME LOOP TEST TO CONFIRM IT WORKS
-        let boxX = 0;
-        let boxSpeed = 5;
+            // Draw a green square in the upper-left area
+            ctx.fillStyle = '#4caf50';
+            ctx.fillRect(50, 50, 150, 150);
 
-        function update() {
-            // Move a box across the screen
-            boxX += boxSpeed;
-            // Bounce off the edges of your 1280 virtual width boundary
-            if (boxX > VIRTUAL_WIDTH - 50 || boxX < 0) {
-                boxSpeed *= -1;
-            }
+            // Draw a red square in the center area
+            ctx.fillStyle = '#f44336';
+            ctx.fillRect(325, 225, 150, 150);
+
+            // Draw text to visually double-check screen tracking info
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '24px sans-serif';
+            ctx.fillText('Mobile URL Scale Test', 50, VIRTUAL_HEIGHT - 80);
+            ctx.font = '16px sans-serif';
+            ctx.fillText(`Canvas Dimensions: ${canvas.width}x${canvas.height}`, 50, VIRTUAL_HEIGHT - 40);
+            
+            // -------------------------------------------------------------
+            
+            // Restore drawing state
+            ctx.restore();
         }
 
-        function draw() {
-            // Clear screen using virtual resolution limits
-            ctx.clearRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+        // Event listeners for resize and device flip changes
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', resizeCanvas);
 
-            // Draw a border showing the exact 1280x720 play boundary
-            ctx.strokeStyle = "#00ff00";
-            ctx.lineWidth = 4;
-            ctx.strokeRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
-
-            // Draw informational text tracking our system coordinates
-            ctx.fillStyle = "#ffffff";
-            ctx.font = "30px Arial";
-            ctx.fillText(`Virtual Size: ${VIRTUAL_WIDTH}x${VIRTUAL_HEIGHT}`, 50, 80);
-            ctx.fillText(`Actual Canvas Resolution: ${canvas.width}x${canvas.height}`, 50, 130);
-            ctx.fillText(`Resolution Scale Modifier: ${resolutionScale}`, 50, 180);
-
-            // Draw a moving box
-            ctx.fillStyle = "#ff3333";
-            ctx.fillRect(boxX, VIRTUAL_HEIGHT / 2 - 25, 50, 50);
-        }
-
-        function gameLoop() {
-            update();
-            draw();
-            requestAnimationFrame(gameLoop);
-        }
-
-        // Kick off the loop
-        gameLoop();
+        // Run immediately on page initialization
+        resizeCanvas();
     </script>
 </body>
 </html>
