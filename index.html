@@ -58,18 +58,30 @@
 <canvas id="game"></canvas>
 
 <script>
+/* ------------------------------
+   FIXED GAME RESOLUTION
+------------------------------ */
 const GAME_WIDTH = 480;
 const GAME_HEIGHT = 270;
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
+/* ------------------------------
+   GLOBAL TRANSFORM VALUES
+------------------------------ */
 let scale = 1;
 let offsetX = 0;
 let offsetY = 0;
 
+/* ------------------------------
+   GAME STATE
+------------------------------ */
 let bird, pipes, lastTime, running, score;
 
+/* ------------------------------
+   DYNAMIC GAP BASED ON ASPECT
+------------------------------ */
 function getDynamicGap() {
     const aspect = window.innerWidth / window.innerHeight;
     if (aspect > 1.6) return 120;
@@ -77,6 +89,9 @@ function getDynamicGap() {
     return 80;
 }
 
+/* ------------------------------
+   PIPE GENERATOR (CLAMPED)
+------------------------------ */
 function makePipe(x) {
     const gap = getDynamicGap();
     const minTop = 40;
@@ -100,6 +115,9 @@ function spawnInitialPipes() {
     }
 }
 
+/* ------------------------------
+   GAME RESET
+------------------------------ */
 function resetGame() {
     bird = { x: 120, y: GAME_HEIGHT / 2, vy: 0, width: 24, height: 24 };
     pipes = [];
@@ -108,6 +126,9 @@ function resetGame() {
     spawnInitialPipes();
 }
 
+/* ------------------------------
+   ADAPTIVE LETTERBOXING
+------------------------------ */
 function resizeCanvas() {
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
@@ -130,6 +151,9 @@ function resizeCanvas() {
 window.addEventListener("resize", () => setTimeout(resizeCanvas, 50));
 window.addEventListener("orientationchange", () => setTimeout(resizeCanvas, 200));
 
+/* ------------------------------
+   GAME UPDATE
+------------------------------ */
 function update(dt) {
     const gravity = 900;
     const pipeSpeed = 120;
@@ -159,7 +183,6 @@ function update(dt) {
         }
     }
 
-    // remove and respawn pipes strictly at game-world edge
     if (pipes.length && pipes[0].x + pipes[0].width < 0) {
         pipes.shift();
         const lastX = pipes[pipes.length - 1].x;
@@ -167,6 +190,9 @@ function update(dt) {
     }
 }
 
+/* ------------------------------
+   COLLISION
+------------------------------ */
 function checkPipeCollision(bird, pipe) {
     const bx1 = bird.x;
     const by1 = bird.y;
@@ -193,14 +219,24 @@ function checkPipeCollision(bird, pipe) {
     return collidesTop || collidesBottom;
 }
 
+/* ------------------------------
+   DRAW — FULLSCREEN BACKGROUND + LETTERBOXED GAME
+------------------------------ */
 function draw() {
+    // 1. Reset transform
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    // 2. Clear entire screen
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 3. Draw full-screen background (no letterbox)
+    ctx.fillStyle = "#70c5ce"; // sky blue
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 4. Reapply game transform for gameplay
     ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
 
-    ctx.fillStyle = "#70c5ce";
-    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
+    // 5. Draw game world
     ctx.fillStyle = "#ded895";
     ctx.fillRect(0, GAME_HEIGHT - 40, GAME_WIDTH, 40);
 
@@ -209,7 +245,7 @@ function draw() {
 
     ctx.fillStyle = "#4caf50";
     for (let pipe of pipes) {
-        if (pipe.x + pipe.width < 0) continue; // don't draw off-screen pipes
+        if (pipe.x + pipe.width < 0) continue;
         ctx.fillRect(pipe.x, 0, pipe.width, pipe.topHeight);
         ctx.fillRect(pipe.x, pipe.topHeight + pipe.gap, pipe.width, GAME_HEIGHT - (pipe.topHeight + pipe.gap));
     }
@@ -228,6 +264,9 @@ function draw() {
     }
 }
 
+/* ------------------------------
+   GAME LOOP
+------------------------------ */
 function loop(timestamp) {
     if (!running) {
         draw();
@@ -244,10 +283,16 @@ function loop(timestamp) {
     requestAnimationFrame(loop);
 }
 
+/* ------------------------------
+   GAME OVER
+------------------------------ */
 function gameOver() {
     running = false;
 }
 
+/* ------------------------------
+   FLAP
+------------------------------ */
 function flap() {
     if (!running) {
         resetGame();
@@ -264,6 +309,9 @@ canvas.addEventListener("touchstart", (e) => {
     flap();
 }, { passive: false });
 
+/* ------------------------------
+   FULLSCREEN WRAPPER
+------------------------------ */
 document.getElementById("startBtn").onclick = async () => {
     const ui = document.getElementById("ui");
 
